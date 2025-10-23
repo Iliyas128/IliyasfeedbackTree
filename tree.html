@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивная доска - Дерево обратной связи</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+        }
+        
+        .apple {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: grab;
+            user-select: none;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+        }
+        
+        .apple:active {
+            cursor: grabbing;
+        }
+        
+        .apple:hover {
+            transform: scale(1.15) translateY(-5px);
+            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+        }
+        
+        .apple.dragging {
+            transform: scale(1.3) rotate(5deg);
+            z-index: 1000;
+            filter: drop-shadow(0 12px 24px rgba(0,0,0,0.3));
+        }
+        
+        .tree-zone {
+            transition: all 0.4s ease;
+            position: relative;
+        }
+        
+        .tree-zone.drag-over {
+            filter: drop-shadow(0 0 30px rgba(34, 197, 94, 0.8));
+            transform: scale(1.02);
+        }
+        
+        .tree-animation {
+            animation: gentle-sway 8s ease-in-out infinite;
+        }
+        
+        @keyframes gentle-sway {
+            0%, 100% { transform: rotate(0deg) translateY(0px); }
+            25% { transform: rotate(0.3deg) translateY(-2px); }
+            50% { transform: rotate(0deg) translateY(0px); }
+            75% { transform: rotate(-0.3deg) translateY(2px); }
+        }
+        
+        .apple-on-tree {
+            animation: apple-appear 1s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        
+        @keyframes apple-appear {
+            0% { 
+                transform: scale(0) rotate(180deg); 
+                opacity: 0; 
+            }
+            50% { 
+                transform: scale(1.3) rotate(10deg); 
+                opacity: 0.8; 
+            }
+            100% { 
+                transform: scale(1) rotate(0deg); 
+                opacity: 1; 
+            }
+        }
+        
+        .stats-counter {
+            animation: count-up 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        
+        @keyframes count-up {
+            0% { transform: scale(1.8) rotate(5deg); }
+            50% { transform: scale(0.9) rotate(-2deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        
+        .reset-btn {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .reset-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        
+        .reset-btn:active {
+            transform: translateY(-1px) scale(1.02);
+        }
+        
+        .panel-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+        }
+        
+        .notification {
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .floating-leaves {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #32CD32, #228B22);
+            border-radius: 50% 0;
+            opacity: 0.6;
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+        
+        .leaf-1 { top: 10%; left: 10%; animation-delay: 0s; }
+        .leaf-2 { top: 20%; right: 15%; animation-delay: 2s; }
+        .leaf-3 { bottom: 30%; left: 20%; animation-delay: 4s; }
+        .leaf-4 { bottom: 20%; right: 10%; animation-delay: 1s; }
+        
+        .lang-btn {
+            padding: 8px 16px;
+            margin: 0 4px;
+            border: none;
+            border-radius: 20px;
+            background: transparent;
+            color: #666;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .lang-btn:hover {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+            transform: translateY(-1px);
+        }
+        
+        .lang-btn.active {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        }
+        
+        .lang-btn.active:hover {
+            transform: translateY(-1px) scale(1.05);
+        }
+        
+        @media (max-width: 1024px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .left-panel {
+                width: 100%;
+                margin-right: 0;
+                margin-bottom: 1rem;
+            }
+            
+            .tree-svg {
+                width: 100%;
+                height: auto;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .title {
+                font-size: 2.5rem;
+            }
+            
+            .subtitle {
+                font-size: 1rem;
+            }
+            
+            .apple svg {
+                width: 80px;
+                height: 80px;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-emerald-100 via-teal-50 to-green-100 font-sans overflow-x-hidden">
+    <main class="h-screen flex flex-col p-4">
+        <!-- Заголовок -->
+        <header class="text-center mb-6">
+            <!-- Переключатель языков -->
+            <div class="flex justify-center mb-4">
+                <div class="bg-white/80 backdrop-blur rounded-full p-2 shadow-lg">
+                    <button onclick="switchLanguage('ru')" class="lang-btn active" data-lang="ru">🇷🇺 Русский</button>
+                    <button onclick="switchLanguage('kz')" class="lang-btn" data-lang="kz">🇰🇿 Қазақша</button>
+                    <button onclick="switchLanguage('en')" class="lang-btn" data-lang="en">🇺🇸 English</button>
+                </div>
+            </div>
+            
+            <h1 class="title text-6xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-3" data-translate="title">🌳 Дерево понимания урока</h1>
+            <p class="subtitle text-xl text-gray-600 font-medium" data-translate="subtitle">Перетащите яблоко на дерево или нажмите на него</p>
+        </header>
+        
+        <!-- Основная область -->
+        <div class="flex-1 flex main-container">
+            <!-- Левая панель с яблоками -->
+            <div class="left-panel w-80 panel-card rounded-3xl p-6 mr-6 flex flex-col">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center" data-translate="choose-understanding">Выберите ваше понимание</h2>
+                
+                <!-- Яблоки для перетаскивания -->
+                <div class="space-y-6 flex-1">
+                    <!-- Зеленое яблоко -->
+                    <div class="text-center">
+                        <div class="apple mb-3" 
+                             data-type="understood" 
+                             data-color="#32CD32"
+                             draggable="true"
+                             onclick="addAppleToTree('understood', '#32CD32')">
+                            <svg width="120" height="120" viewBox="0 0 100 100" class="mx-auto">
+                                <circle cx="50" cy="55" r="35" fill="#32CD32" stroke="#228B22" stroke-width="3"/>
+                                <ellipse cx="42" cy="48" rx="10" ry="15" fill="#90EE90" opacity="0.7"/>
+                                <path d="M50 20 Q55 15 60 20" stroke="#8B4513" stroke-width="4" fill="none"/>
+                                <path d="M55 18 Q62 12 68 18 Q62 25 55 22" fill="#228B22"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-bold text-green-700" data-translate="understood-title">Я все понял! 😊</h3>
+                        <p class="text-sm text-gray-600" data-translate="understood-desc">Материал понятен</p>
+                    </div>
+                    
+                    <!-- Желтое яблоко -->
+                    <div class="text-center">
+                        <div class="apple mb-3" 
+                             data-type="questions" 
+                             data-color="#FFD700"
+                             draggable="true"
+                             onclick="addAppleToTree('questions', '#FFD700')">
+                            <svg width="120" height="120" viewBox="0 0 100 100" class="mx-auto">
+                                <circle cx="50" cy="55" r="35" fill="#FFD700" stroke="#FFA500" stroke-width="3"/>
+                                <ellipse cx="42" cy="48" rx="10" ry="15" fill="#FFFF99" opacity="0.7"/>
+                                <path d="M50 20 Q55 15 60 20" stroke="#8B4513" stroke-width="4" fill="none"/>
+                                <path d="M55 18 Q62 12 68 18 Q62 25 55 22" fill="#228B22"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-bold text-yellow-600" data-translate="questions-title">Есть вопросы 🤔</h3>
+                        <p class="text-sm text-gray-600" data-translate="questions-desc">Нужны уточнения</p>
+                    </div>
+                    
+                    <!-- Красное яблоко -->
+                    <div class="text-center">
+                        <div class="apple mb-3" 
+                             data-type="confused" 
+                             data-color="#DC143C"
+                             draggable="true"
+                             onclick="addAppleToTree('confused', '#DC143C')">
+                            <svg width="120" height="120" viewBox="0 0 100 100" class="mx-auto">
+                                <circle cx="50" cy="55" r="35" fill="#DC143C" stroke="#B22222" stroke-width="3"/>
+                                <ellipse cx="42" cy="48" rx="10" ry="15" fill="#FFB6C1" opacity="0.7"/>
+                                <path d="M50 20 Q55 15 60 20" stroke="#8B4513" stroke-width="4" fill="none"/>
+                                <path d="M55 18 Q62 12 68 18 Q62 25 55 22" fill="#228B22"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-bold text-red-600" data-translate="confused-title">Не понял 😕</h3>
+                        <p class="text-sm text-gray-600" data-translate="confused-desc">Нужна помощь</p>
+                    </div>
+                </div>
+                
+                <!-- Кнопка сброса -->
+                <button onclick="resetTree()" 
+                        class="reset-btn w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-bold py-4 px-6 rounded-xl mt-6 shadow-lg" data-translate="reset-button">
+                    🔄 Очистить дерево
+                </button>
+            </div>
+            
+            <!-- Центральная область с деревом -->
+            <div class="flex-1 flex flex-col">
+                <!-- Дерево -->
+                <div class="flex-1 flex items-center justify-center relative">
+                    <div class="floating-leaves leaf-1"></div>
+                    <div class="floating-leaves leaf-2"></div>
+                    <div class="floating-leaves leaf-3"></div>
+                    <div class="floating-leaves leaf-4"></div>
+                    <div class="tree-zone tree-animation" id="treeZone">
+                        <svg width="900" height="700" viewBox="0 0 600 500" class="tree-svg drop-shadow-2xl">
+                            <!-- Ствол -->
+                            <rect x="285" y="350" width="30" height="150" fill="#8B4513" rx="4"/>
+                            <rect x="280" y="360" width="40" height="130" fill="#A0522D" rx="6"/>
+                            
+                            <!-- Корни -->
+                            <path d="M280 480 Q250 490 220 485" stroke="#8B4513" stroke-width="8" fill="none"/>
+                            <path d="M320 480 Q350 490 380 485" stroke="#8B4513" stroke-width="8" fill="none"/>
+                            <path d="M300 485 Q300 495 300 500" stroke="#8B4513" stroke-width="6" fill="none"/>
+                            
+                            <!-- Крона дерева (многослойная) -->
+                            <circle cx="300" cy="250" r="120" fill="#228B22" opacity="0.9"/>
+                            <circle cx="250" cy="220" r="90" fill="#32CD32" opacity="0.8"/>
+                            <circle cx="350" cy="220" r="90" fill="#32CD32" opacity="0.8"/>
+                            <circle cx="300" cy="180" r="80" fill="#90EE90" opacity="0.8"/>
+                            <circle cx="220" cy="200" r="60" fill="#228B22" opacity="0.7"/>
+                            <circle cx="380" cy="200" r="60" fill="#228B22" opacity="0.7"/>
+                            <circle cx="300" cy="140" r="50" fill="#90EE90" opacity="0.9"/>
+                            
+                            <!-- Ветки -->
+                            <path d="M280 300 Q240 280 200 290" stroke="#8B4513" stroke-width="6" fill="none"/>
+                            <path d="M320 300 Q360 280 400 290" stroke="#8B4513" stroke-width="6" fill="none"/>
+                            <path d="M290 250 Q250 230 210 240" stroke="#8B4513" stroke-width="4" fill="none"/>
+                            <path d="M310 250 Q350 230 390 240" stroke="#8B4513" stroke-width="4" fill="none"/>
+                            
+                            <!-- Контейнер для яблок на дереве -->
+                            <g id="treeApples"></g>
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Статистика -->
+                <div class="stats-card rounded-2xl p-6 mt-4">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 text-center" data-translate="class-results">Результаты класса</h3>
+                    <div class="grid grid-cols-3 gap-6">
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-green-600 stats-counter" id="understoodCount">0</div>
+                            <div class="text-sm text-gray-600" data-translate="understood-label">Поняли</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-yellow-600 stats-counter" id="questionsCount">0</div>
+                            <div class="text-sm text-gray-600" data-translate="questions-label">Есть вопросы</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-red-600 stats-counter" id="confusedCount">0</div>
+                            <div class="text-sm text-gray-600" data-translate="confused-label">Не поняли</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Переводы для всех языков
+        const translations = {
+            ru: {
+                title: "🌳 Дерево понимания урока",
+                subtitle: "Перетащите яблоко на дерево или нажмите на него",
+                "choose-understanding": "Выберите ваше понимание",
+                "understood-title": "Я все понял! 😊",
+                "understood-desc": "Материал понятен",
+                "questions-title": "Есть вопросы 🤔",
+                "questions-desc": "Нужны уточнения",
+                "confused-title": "Не понял 😕",
+                "confused-desc": "Нужна помощь",
+                "reset-button": "🔄 Очистить дерево",
+                "class-results": "Результаты класса",
+                "understood-label": "Поняли",
+                "questions-label": "Есть вопросы",
+                "confused-label": "Не поняли",
+                "understood-message": "🎉 Отлично! Ученик все понял!",
+                "questions-message": "💭 У ученика есть вопросы",
+                "confused-message": "🤝 Ученику нужна помощь",
+                "reset-message": "🔄 Дерево очищено! Готово для нового урока"
+            },
+            kz: {
+                title: "🌳 Сабақты түсіну ағашы",
+                subtitle: "Алманы ағашқа тартыңыз немесе басыңыз",
+                "choose-understanding": "Түсінуіңізді таңдаңыз",
+                "understood-title": "Мен бәрін түсіндім! 😊",
+                "understood-desc": "Материал түсінікті",
+                "questions-title": "Сұрақтарым бар 🤔",
+                "questions-desc": "Түсініктеме қажет",
+                "confused-title": "Түсінбедім 😕",
+                "confused-desc": "Көмек қажет",
+                "reset-button": "🔄 Ағашты тазалау",
+                "class-results": "Сынып нәтижелері",
+                "understood-label": "Түсінді",
+                "questions-label": "Сұрақтары бар",
+                "confused-label": "Түсінбеді",
+                "understood-message": "🎉 Керемет! Оқушы бәрін түсінді!",
+                "questions-message": "💭 Оқушының сұрақтары бар",
+                "confused-message": "🤝 Оқушыға көмек қажет",
+                "reset-message": "🔄 Ағаш тазаланды! Жаңа сабаққа дайын"
+            },
+            en: {
+                title: "🌳 Lesson Understanding Tree",
+                subtitle: "Drag an apple to the tree or click on it",
+                "choose-understanding": "Choose your understanding",
+                "understood-title": "I understood everything! 😊",
+                "understood-desc": "Material is clear",
+                "questions-title": "I have questions 🤔",
+                "questions-desc": "Need clarification",
+                "confused-title": "I don't understand 😕",
+                "confused-desc": "Need help",
+                "reset-button": "🔄 Clear tree",
+                "class-results": "Class results",
+                "understood-label": "Understood",
+                "questions-label": "Have questions",
+                "confused-label": "Don't understand",
+                "understood-message": "🎉 Great! Student understood everything!",
+                "questions-message": "💭 Student has questions",
+                "confused-message": "🤝 Student needs help",
+                "reset-message": "🔄 Tree cleared! Ready for new lesson"
+            }
+        };
+
+        let currentLanguage = 'ru';
+        
+        // Функция переключения языка
+        function switchLanguage(lang) {
+            currentLanguage = lang;
+            
+            // Обновляем активную кнопку
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-lang="${lang}"]`).classList.add('active');
+            
+            // Переводим все элементы
+            document.querySelectorAll('[data-translate]').forEach(element => {
+                const key = element.getAttribute('data-translate');
+                if (translations[lang] && translations[lang][key]) {
+                    element.textContent = translations[lang][key];
+                }
+            });
+        }
+
+        let appleCount = { understood: 0, questions: 0, confused: 0 };
+        let draggedApple = null;
+        
+        // Обработчики перетаскивания
+        document.querySelectorAll('.apple').forEach(apple => {
+            apple.addEventListener('dragstart', handleDragStart);
+            apple.addEventListener('dragend', handleDragEnd);
+        });
+        
+        const treeZone = document.getElementById('treeZone');
+        treeZone.addEventListener('dragover', handleDragOver);
+        treeZone.addEventListener('drop', handleDrop);
+        treeZone.addEventListener('dragenter', handleDragEnter);
+        treeZone.addEventListener('dragleave', handleDragLeave);
+        
+        function handleDragStart(e) {
+            draggedApple = {
+                type: this.dataset.type,
+                color: this.dataset.color
+            };
+            this.classList.add('dragging');
+        }
+        
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+        }
+        
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+        
+        function handleDragEnter(e) {
+            e.preventDefault();
+            treeZone.classList.add('drag-over');
+        }
+        
+        function handleDragLeave(e) {
+            if (!treeZone.contains(e.relatedTarget)) {
+                treeZone.classList.remove('drag-over');
+            }
+        }
+        
+        function handleDrop(e) {
+            e.preventDefault();
+            treeZone.classList.remove('drag-over');
+            
+            if (draggedApple) {
+                addAppleToTree(draggedApple.type, draggedApple.color);
+                draggedApple = null;
+            }
+        }
+        
+        function addAppleToTree(type, color) {
+            // Увеличиваем счетчик
+            appleCount[type]++;
+            updateStats();
+            
+            // Создаем яблоко на дереве
+            const treeApples = document.getElementById('treeApples');
+            const newApple = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            
+            // Случайная позиция в кроне дерева
+            const positions = [
+                {x: 250 + Math.random() * 100, y: 180 + Math.random() * 80},
+                {x: 220 + Math.random() * 60, y: 200 + Math.random() * 40},
+                {x: 320 + Math.random() * 60, y: 200 + Math.random() * 40},
+                {x: 270 + Math.random() * 60, y: 160 + Math.random() * 50},
+                {x: 240 + Math.random() * 120, y: 220 + Math.random() * 60}
+            ];
+            
+            const pos = positions[Math.floor(Math.random() * positions.length)];
+            
+            newApple.setAttribute('cx', pos.x);
+            newApple.setAttribute('cy', pos.y);
+            newApple.setAttribute('r', '12');
+            newApple.setAttribute('fill', color);
+            newApple.setAttribute('stroke', '#fff');
+            newApple.setAttribute('stroke-width', '2');
+            newApple.classList.add('apple-on-tree');
+            
+            // Добавляем блик на яблоке
+            const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+            highlight.setAttribute('cx', pos.x - 3);
+            highlight.setAttribute('cy', pos.y - 3);
+            highlight.setAttribute('rx', '3');
+            highlight.setAttribute('ry', '5');
+            highlight.setAttribute('fill', '#fff');
+            highlight.setAttribute('opacity', '0.6');
+            highlight.classList.add('apple-on-tree');
+            
+            treeApples.appendChild(newApple);
+            treeApples.appendChild(highlight);
+            
+            // Звуковой эффект (визуальная обратная связь)
+            showFeedback(type);
+        }
+        
+        function updateStats() {
+            document.getElementById('understoodCount').textContent = appleCount.understood;
+            document.getElementById('questionsCount').textContent = appleCount.questions;
+            document.getElementById('confusedCount').textContent = appleCount.confused;
+            
+            // Анимация обновления счетчика
+            document.querySelectorAll('.stats-counter').forEach(counter => {
+                counter.classList.remove('stats-counter');
+                setTimeout(() => counter.classList.add('stats-counter'), 10);
+            });
+        }
+        
+        function showFeedback(type) {
+            const messages = {
+                understood: translations[currentLanguage]['understood-message'],
+                questions: translations[currentLanguage]['questions-message'],
+                confused: translations[currentLanguage]['confused-message']
+            };
+            
+            const colors = {
+                understood: 'bg-green-100 border-green-400 text-green-700',
+                questions: 'bg-yellow-100 border-yellow-400 text-yellow-700',
+                confused: 'bg-red-100 border-red-400 text-red-700'
+            };
+            
+            // Создаем временное уведомление
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 ${colors[type]} border px-6 py-3 rounded-lg notification z-50 transform translate-x-full transition-transform duration-300`;
+            notification.textContent = messages[type];
+            
+            document.body.appendChild(notification);
+            
+            // Показываем уведомление
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            // Скрываем через 3 секунды
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+        
+        function resetTree() {
+            // Очищаем дерево
+            document.getElementById('treeApples').innerHTML = '';
+            
+            // Сбрасываем счетчики
+            appleCount = { understood: 0, questions: 0, confused: 0 };
+            updateStats();
+            
+            // Показываем уведомление
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-4 right-4 bg-blue-100 border-blue-400 text-blue-700 border px-6 py-3 rounded-lg notification z-50 transform translate-x-full transition-transform duration-300';
+            notification.textContent = translations[currentLanguage]['reset-message'];
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            // Устанавливаем русский язык по умолчанию
+            switchLanguage('ru');
+        });
+    </script>
+</body>
+</html>
